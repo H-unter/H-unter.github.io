@@ -12,7 +12,7 @@ output:
         depth: 2
 ---
 
-# Home
+# index
 
 Welcome to the LaTeX-Report-Template wiki!
 
@@ -22,9 +22,14 @@ In this wiki, you'll find easy-to-access information to save you some time googl
 
 Look at the navigation on the left, it's cool!
 
+Use the **A** icon above to change font and to light mode
+
 # Software Setup
 
+> **TIP**
+> 
 > It is recommended that you mess around in Overleaf yourself before using this template to test the waters.
+
 
 ## Overleaf (Browser)
 
