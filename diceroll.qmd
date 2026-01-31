@@ -18,33 +18,7 @@ d3 = import("https://esm.sh/d3@7")
 ```{ojs}
 //| echo: false
 
-// Create individual stat inputs in a compact grid
-statsInputs = html`
-<div class="row g-2">
-  <div class="col-md-4">
-    ${Inputs.range([0, 6], {value: 3, step: 1, label: "Proficiency Bonus"})}
-  </div>
-  <div class="col-md-4">
-    ${Inputs.range([-5, 10], {value: 1, step: 1, label: "STR"})}
-  </div>
-  <div class="col-md-4">
-    ${Inputs.range([-5, 10], {value: 2, step: 1, label: "DEX"})}
-  </div>
-  <div class="col-md-4">
-    ${Inputs.range([-5, 10], {value: 2, step: 1, label: "CON"})}
-  </div>
-  <div class="col-md-4">
-    ${Inputs.range([-5, 10], {value: 0, step: 1, label: "INT"})}
-  </div>
-  <div class="col-md-4">
-    ${Inputs.range([-5, 10], {value: 4, step: 1, label: "WIS"})}
-  </div>
-  <div class="col-md-4">
-    ${Inputs.range([-5, 10], {value: -1, step: 1, label: "CHA"})}
-  </div>
-</div>
-`
-
+// Create individual stat inputs
 viewof PROFICIENCY_BONUS = Inputs.range([0, 6], {value: 3, step: 1, label: "Proficiency Bonus"})
 viewof STR_MOD = Inputs.range([-5, 10], {value: 1, step: 1, label: "STR"})
 viewof DEX_MOD = Inputs.range([-5, 10], {value: 2, step: 1, label: "DEX"})
@@ -88,6 +62,11 @@ initialSpells = ({
     level: 0,
     to_hit: "1d20 + PROFICIENCY_BONUS + STR_MOD",
     damage: "1d12 + STR_MOD"
+  },
+  "Sacred Flame": {
+    level: 0,
+    to_hit: "None",
+    damage: "1d8"
   }
 })
 
@@ -145,6 +124,18 @@ function parseDiceNotation(notation, stats) {
   }
   
   return { diceTerms, constantBonus, original: notation, resolved: formula };
+}
+
+function resolveFormula(notation, stats) {
+  if (!notation || notation === "None") return "None";
+  
+  let formula = notation.trim();
+  Object.keys(stats).forEach(key => {
+    const regex = new RegExp(key, 'g');
+    formula = formula.replace(regex, stats[key]);
+  });
+  
+  return formula;
 }
 
 function calculateDistribution(diceTerms, constantBonus) {
@@ -216,92 +207,120 @@ function rollDice(diceTerms, constantBonus) {
   return total;
 }
 
-function createPlot(data, rollResult) {
-  const outcomes = data.map(d => d.outcome);
-  const probs = data.map(d => d.probability);
-  
+function createPlot(data, rollResult, width = 450) {
   return Plot.plot({
-    width: 400,
-    height: 200,
+    width: width,
+    height: 250,
     marginBottom: 40,
-    marginLeft: 40,
+    marginLeft: 50,
     marginRight: 20,
+    marginTop: 20,
     x: { 
       label: "Outcome",
-      labelAnchor: "center"
+      labelAnchor: "center",
+      grid: true
     },
     y: { 
       label: "Probability",
       percent: true,
-      labelAnchor: "center"
+      labelAnchor: "center",
+      grid: true
     },
     marks: [
       Plot.barY(data, {
         x: "outcome",
         y: "probability",
-        fill: d => d.outcome === rollResult ? "#dc3545" : "#6c757d",
-        opacity: d => d.outcome === rollResult ? 1 : 0.5
+        fill: d => (rollResult !== null && d.outcome === rollResult) ? "#dc3545" : "#6c757d",
+        opacity: d => (rollResult !== null && d.outcome === rollResult) ? 1 : 0.5
       }),
-      Plot.ruleX([rollResult], {
+      rollResult !== null ? Plot.ruleX([rollResult], {
         stroke: "#dc3545",
-        strokeWidth: 2
-      })
-    ]
+        strokeWidth: 2,
+        strokeDasharray: "4"
+      }) : null
+    ].filter(x => x !== null)
   });
 }
 ```
 
-## Spells & Actions
+## Select Spell
 
 ```{ojs}
 //| echo: false
 
-spellCards = {
-  const spellEntries = Object.entries(spellsConfig);
+viewof selectedSpellName = Inputs.select(
+  Object.keys(spellsConfig),
+  {label: "Choose a spell or action:", value: Object.keys(spellsConfig)[0]}
+)
+```
+
+```{ojs}
+//| echo: false
+
+spellCard = {
+  const spell = spellsConfig[selectedSpellName];
+  if (!spell) return html`<div>No spell selected</div>`;
   
-  const cards = spellEntries.map(([name, spell]) => {
-    const cardId = name.replace(/\s+/g, '-');
-    
-    // Create containers
-    const card = html`<div class="col-lg-6 mb-4"></div>`;
+  // Create main container
+  const container = html`<div style="max-width: 1400px; margin: 0 auto;"></div>`;
+  
+  // Create the card element
+  const card = html`
+    <div class="card shadow-lg border-0">
+      <div class="card-header bg-gradient text-white d-flex justify-content-between align-items-center" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+        <h4 class="mb-0">${selectedSpellName}</h4>
+        <span class="badge bg-light text-dark fs-6">Level ${spell.level}</span>
+      </div>
+      <div class="card-body p-4">
+        <div style="display: flex; gap: 30px; flex-wrap: wrap;">
+        </div>
+      </div>
+    </div>
+  `;
+  
+  const flexContainer = card.querySelector('div[style*="display: flex"]');
+  
+  // Create To Hit section
+  if (spell.to_hit !== "None") {
+    const toHitSection = html`
+      <div style="flex: 1; min-width: 400px; background: #f8f9fa; padding: 20px; border-radius: 8px;">
+        <h5 class="text-primary mb-3">⚔️ To Hit</h5>
+      </div>
+    `;
     
     const toHitInput = Inputs.text({
       value: spell.to_hit,
       placeholder: "e.g., 1d20 + PROFICIENCY_BONUS + STR_MOD"
     });
     
-    const damageInput = Inputs.text({
-      value: spell.damage,
-      placeholder: "e.g., 2d6 + STR_MOD"
-    });
+    const toHitResolvedDisplay = html`<div class="small text-muted mt-1 mb-2">
+      <strong>= ${resolveFormula(spell.to_hit, characterStats)}</strong>
+    </div>`;
     
-    // Update config on input change
     toHitInput.addEventListener('input', (e) => {
       const newSpells = {...spellsConfig};
-      newSpells[name].to_hit = e.target.value;
+      newSpells[selectedSpellName].to_hit = e.target.value;
       spellsConfigInput.value = newSpells;
       spellsConfigInput.dispatchEvent(new Event("input", {bubbles: true}));
+      toHitResolvedDisplay.innerHTML = `<strong>= ${resolveFormula(e.target.value, characterStats)}</strong>`;
     });
     
-    damageInput.addEventListener('input', (e) => {
-      const newSpells = {...spellsConfig};
-      newSpells[name].damage = e.target.value;
-      spellsConfigInput.value = newSpells;
-      spellsConfigInput.dispatchEvent(new Event("input", {bubbles: true}));
-    });
+    const toHitPlotDiv = html`<div style="margin: 15px 0;"></div>`;
+    const toHitResultDiv = html`<div></div>`;
+    const toHitButton = html`<button class="btn btn-primary w-100 btn-lg mt-2">🎲 Roll To Hit</button>`;
     
-    // Result containers
-    const toHitResultDiv = html`<div class="mt-2"></div>`;
-    const damageResultDiv = html`<div class="mt-2"></div>`;
-    
-    // Roll buttons
-    const toHitButton = html`<button class="btn btn-primary btn-sm mt-2 w-100">🎲 Roll To Hit</button>`;
-    const damageButton = html`<button class="btn btn-danger btn-sm mt-2 w-100">🎲 Roll Damage</button>`;
+    // Render initial plot
+    const toHitParsed = parseDiceNotation(spell.to_hit, characterStats);
+    if (toHitParsed) {
+      const dist = calculateDistribution(toHitParsed.diceTerms, toHitParsed.constantBonus);
+      const data = Array.from(dist).map(([outcome, prob]) => ({outcome, probability: prob})).sort((a, b) => a.outcome - b.outcome);
+      toHitPlotDiv.appendChild(createPlot(data, null, 450));
+    }
     
     toHitButton.onclick = () => {
       const parsed = parseDiceNotation(spell.to_hit, characterStats);
       if (!parsed) {
-        toHitResultDiv.innerHTML = '<div class="alert alert-warning p-2">Invalid formula!</div>';
+        toHitResultDiv.innerHTML = '<div class="alert alert-warning mt-2">Invalid formula!</div>';
         return;
       }
       
@@ -314,103 +333,131 @@ spellCards = {
       
       toHitResultDiv.innerHTML = '';
       toHitResultDiv.appendChild(html`
-        <div class="result-box p-2 mt-2 border rounded bg-light">
-          <div class="text-center mb-2">
-            <span class="fs-3 fw-bold text-primary">${result}</span>
-            <span class="ms-2 badge bg-info">${percentile}%ile</span>
-          </div>
-          <div class="plot-container">
-            ${createPlot(data, result)}
+        <div class="result-box p-3 mt-3 border rounded text-center" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+          <div class="display-4 fw-bold">${result}</div>
+          <div class="mt-2">
+            <span class="badge bg-light text-dark fs-6">${percentile}th percentile</span>
           </div>
         </div>
       `);
+      
+      toHitPlotDiv.innerHTML = '';
+      toHitPlotDiv.appendChild(createPlot(data, result, 450));
     };
     
-    damageButton.onclick = () => {
-      const parsed = parseDiceNotation(spell.damage, characterStats);
-      if (!parsed) {
-        damageResultDiv.innerHTML = '<div class="alert alert-warning p-2">Invalid formula!</div>';
-        return;
-      }
-      
-      const result = rollDice(parsed.diceTerms, parsed.constantBonus);
-      const dist = calculateDistribution(parsed.diceTerms, parsed.constantBonus);
-      const data = Array.from(dist).map(([outcome, prob]) => ({outcome, probability: prob})).sort((a, b) => a.outcome - b.outcome);
-      
-      const cumulativeProb = data.reduce((acc, d) => d.outcome < result ? acc + d.probability : acc, 0);
-      const percentile = (cumulativeProb * 100).toFixed(0);
-      
-      damageResultDiv.innerHTML = '';
-      damageResultDiv.appendChild(html`
-        <div class="result-box p-2 mt-2 border rounded bg-light">
-          <div class="text-center mb-2">
-            <span class="fs-3 fw-bold text-danger">${result}</span>
-            <span class="ms-2 badge bg-info">${percentile}%ile</span>
-          </div>
-          <div class="plot-container">
-            ${createPlot(data, result)}
-          </div>
-        </div>
-      `);
-    };
+    toHitSection.appendChild(html`<div><label class="small text-muted fw-bold mb-1">Formula</label></div>`);
+    toHitSection.appendChild(toHitInput);
+    toHitSection.appendChild(toHitResolvedDisplay);
+    toHitSection.appendChild(toHitPlotDiv);
+    toHitSection.appendChild(toHitButton);
+    toHitSection.appendChild(toHitResultDiv);
     
-    // Build card
-    const toHitSection = spell.to_hit !== "None" ? html`
-      <div class="mb-3 pb-3 border-bottom">
-        <label class="small text-muted fw-bold mb-1">TO HIT</label>
-        ${toHitInput}
-        ${toHitButton}
-        ${toHitResultDiv}
-      </div>
-    ` : '';
+    flexContainer.appendChild(toHitSection);
+  }
+  
+  // Create Damage section
+  const damageSection = html`
+    <div style="flex: 1; min-width: 400px; background: #f8f9fa; padding: 20px; border-radius: 8px;">
+      <h5 class="text-danger mb-3">💥 Damage</h5>
+    </div>
+  `;
+  
+  const damageInput = Inputs.text({
+    value: spell.damage,
+    placeholder: "e.g., 2d6 + STR_MOD"
+  });
+  
+  const damageResolvedDisplay = html`<div class="small text-muted mt-1 mb-2">
+    <strong>= ${resolveFormula(spell.damage, characterStats)}</strong>
+  </div>`;
+  
+  damageInput.addEventListener('input', (e) => {
+    const newSpells = {...spellsConfig};
+    newSpells[selectedSpellName].damage = e.target.value;
+    spellsConfigInput.value = newSpells;
+    spellsConfigInput.dispatchEvent(new Event("input", {bubbles: true}));
+    damageResolvedDisplay.innerHTML = `<strong>= ${resolveFormula(e.target.value, characterStats)}</strong>`;
+  });
+  
+  const damagePlotDiv = html`<div style="margin: 15px 0;"></div>`;
+  const damageResultDiv = html`<div></div>`;
+  const damageButton = html`<button class="btn btn-danger w-100 btn-lg mt-2">🎲 Roll Damage</button>`;
+  
+  // Render initial plot
+  const damageParsed = parseDiceNotation(spell.damage, characterStats);
+  if (damageParsed) {
+    const dist = calculateDistribution(damageParsed.diceTerms, damageParsed.constantBonus);
+    const data = Array.from(dist).map(([outcome, prob]) => ({outcome, probability: prob})).sort((a, b) => a.outcome - b.outcomes);
+    damagePlotDiv.appendChild(createPlot(data, null, 450));
+  }
+  
+  damageButton.onclick = () => {
+    const parsed = parseDiceNotation(spell.damage, characterStats);
+    if (!parsed) {
+      damageResultDiv.innerHTML = '<div class="alert alert-warning mt-2">Invalid formula!</div>';
+      return;
+    }
     
-    card.appendChild(html`
-      <div class="card shadow-sm h-100">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <strong>${name}</strong>
-          <span class="badge bg-primary">Lvl ${spell.level}</span>
-        </div>
-        <div class="card-body">
-          ${toHitSection}
-          <div>
-            <label class="small text-muted fw-bold mb-1">DAMAGE</label>
-            ${damageInput}
-            ${damageButton}
-            ${damageResultDiv}
-          </div>
+    const result = rollDice(parsed.diceTerms, parsed.constantBonus);
+    const dist = calculateDistribution(parsed.diceTerms, parsed.constantBonus);
+    const data = Array.from(dist).map(([outcome, prob]) => ({outcome, probability: prob})).sort((a, b) => a.outcome - b.outcome);
+    
+    const cumulativeProb = data.reduce((acc, d) => d.outcome < result ? acc + d.probability : acc, 0);
+    const percentile = (cumulativeProb * 100).toFixed(0);
+    
+    damageResultDiv.innerHTML = '';
+    damageResultDiv.appendChild(html`
+      <div class="result-box p-3 mt-3 border rounded text-center" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
+        <div class="display-4 fw-bold">${result}</div>
+        <div class="mt-2">
+          <span class="badge bg-light text-dark fs-6">${percentile}th percentile</span>
         </div>
       </div>
     `);
     
-    return card;
-  });
+    damagePlotDiv.innerHTML = '';
+    damagePlotDiv.appendChild(createPlot(data, result, 450));
+  };
   
-  return html`
-<style>
-  .card { transition: all 0.2s; }
-  .card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important; }
-  .result-box {
-    animation: slideIn 0.3s ease-out;
-    background: linear-gradient(to bottom, #f8f9fa, #ffffff) !important;
-  }
-  @keyframes slideIn {
-    from { opacity: 0; transform: translateY(-10px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-  .plot-container { 
-    display: flex; 
-    justify-content: center; 
-  }
-</style>
-
-<div class="row">
-  ${cards}
-</div>
-`;
+  damageSection.appendChild(html`<div><label class="small text-muted fw-bold mb-1">Formula</label></div>`);
+  damageSection.appendChild(damageInput);
+  damageSection.appendChild(damageResolvedDisplay);
+  damageSection.appendChild(damagePlotDiv);
+  damageSection.appendChild(damageButton);
+  damageSection.appendChild(damageResultDiv);
+  
+  flexContainer.appendChild(damageSection);
+  
+  container.appendChild(html`
+    <style>
+      .result-box {
+        animation: slideIn 0.4s ease-out;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+      }
+      @keyframes slideIn {
+        from { 
+          opacity: 0; 
+          transform: translateY(-20px) scale(0.95); 
+        }
+        to { 
+          opacity: 1; 
+          transform: translateY(0) scale(1); 
+        }
+      }
+      .small strong {
+        font-family: 'Courier New', monospace;
+        color: #495057;
+        font-size: 0.95em;
+      }
+    </style>
+  `);
+  container.appendChild(card);
+  
+  return container;
 }
 ```
 
 ```{ojs}
 //| echo: false
-spellCards
+spellCard
 ```
