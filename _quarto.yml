@@ -3,32 +3,27 @@ project:
   output-dir: docs
 
 website:
-  title: "HKIWebsite"
-  navbar:
-    left:
-      - href: index.qmd
-        text: Home
-      - about.qmd
-    right:
-      - href: https://github.com/H-unter
-        icon: fab fa-github
-        text: GitHub
-    logo: elements/switchswirl.jpg
+  title: "Home"
+  # Navbar removed to clear the "top of the page"
   sidebar:
+    logo: elements/switchswirl_with_initials.png # Moved logo here
     style: docked
     search: true
     contents:
+      # --- Home and About moved here (Above Tools) ---
+      - href: index.qmd
+        text: Home
+      # --- Tools Section ---
       - section: "Tools"
-      - contents: 
-          - page1.qmd
+        contents:      # Notice there is no dash before 'contents' here
+          - diceroll.qmd  # This nests page1 inside the Tools section
+
 
 format:
   html:
     theme:
-      - cosmo
-      - brand
+      light: simplex
+      dark: darkly
     css: styles.css
     toc: true
-
-
-
+    toc-location: right
